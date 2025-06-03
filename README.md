@@ -116,7 +116,7 @@ n8n start
 
 ## 👨‍💻 Autor
 
-**Matheus Pedroso - MV3 Soluções**
+**Matheus Pedroso**
 - GitHub: [@matheuspedroso](https://github.com/matheuspedroso)
 
 ---

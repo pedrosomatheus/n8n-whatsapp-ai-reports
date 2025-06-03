@@ -1,0 +1,299 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json.message.content || \"\";\n\n// Remove blocos de código markdown: ```sql ... ```\n//const cleaned = content.replace(/```[a-z]*\\\\s*([\\\\s\\\\S]*?)```/gi, \"$1\").trim();\n\nconst cleaned = content\n  .replace(/```sql/gi, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nreturn [{\n  json: {\n    query: cleaned\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        596,
+        -120
+      ],
+      "id": "51b45710-8a5e-4cf2-9615-8a798e7befa0",
+      "name": "Code - TrataQuery"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega a pergunta do primeiro item da execução original\nconst pergunta =  $('When chat message received').first().json.chatInput || \"\";\n\nconst mensagens = $('DB_Executa').all();\n\nconst contexto = mensagens\n  .map(m => `${m.json.timestamp} - ${m.json.message}`)\n  .join(\"\\n\");\n\nreturn [{\n  json: {\n    prompt: `Você é um analista de conversas.\\n\\nPergunta original: \"${pergunta}\"\\n\\nAbaixo estão as mensagens encontradas no banco relacionadas à pergunta:\\n\\n${contexto}\\n\\nCom base nesse contexto, responda de forma objetiva, explicando o que foi identificado.`\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        -120
+      ],
+      "id": "1d896871-c985-4241-9cd3-673bfc7d48f3",
+      "name": "Code - Gera Prompt"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4",
+          "mode": "list",
+          "cachedResultName": "GPT-4"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Você é um assistente SQL que gera queries para o SQL Server com base em perguntas em linguagem natural.\n\nA tabela se chama `whatsapp_mensagens`, e todos os campos são `VARCHAR`. Aqui estão os principais campos:\n\n- id\n- timestamp (armazenado como VARCHAR no formato ISO ex: '2025-04-24T15:23:50.000Z')\n- from_number\n- to_number\n- from_me (\"true\" ou \"false\")\n- message (texto da conversa)\n- message_type\n- is_forwarded\n- chat_id (ex: '5511989912822@c.us')\n- sender_name\n- verified_name\n- is_group\n- ack\n\n---\n\nCom base na pergunta do usuário abaixo, gere uma query SQL válida para SQL Server:\n\n- Compare datas com: `CAST(timestamp AS DATETIME)`\n- Use `LIKE '%termo%'` para busca textual\n- Use filtros por `chat_id` quando o número estiver presente\n- Retorne no máximo 100 resultados ordenados por data decrescente\n\n\n\n---\n\nPergunta:\n\"{{ $json.chatInput }}\"\n\nResponda apenas com a `query SQL`, sem explicações.\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        220,
+        -120
+      ],
+      "id": "40c235aa-9db7-4ead-9596-187631807c05",
+      "name": "AI_GeraQuery",
+      "credentials": {
+        "openAiApi": {
+          "id": "08Hqlyar1632Ixlg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.query }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        -120
+      ],
+      "id": "d592fe50-b1c5-4218-a8c3-26db4a732443",
+      "name": "DB_Executa",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "qpHmRJe0FaSg67x7",
+          "name": "Microsoft SQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4",
+          "mode": "list",
+          "cachedResultName": "GPT-4"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1300,
+        -120
+      ],
+      "id": "9b6960e5-6221-462e-9b6b-9eb50c672a26",
+      "name": "AI_AnalisaContexto",
+      "credentials": {
+        "openAiApi": {
+          "id": "08Hqlyar1632Ixlg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        20,
+        -120
+      ],
+      "id": "1bc19b04-421f-4175-adb6-7dfaaf345eb2",
+      "name": "When chat message received",
+      "webhookId": "20ea64e4-fb16-4d4b-a7a1-32d3b524b622"
+    },
+    {
+      "parameters": {
+        "jsCode": "const resposta = $input.first().json.message?.content || \"Sem resposta.\";\nreturn [{\n  resposta\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        -120
+      ],
+      "id": "43d29669-601c-4e4c-bf73-89d1af79e64c",
+      "name": "Code - Resposta",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "fromEmail": "matheus.pedroso@mv3.com.br",
+        "toEmail": "matheuspedroso5931@gmail.com",
+        "subject": "Relatório de Mensagens WhatsApp",
+        "html": "={{ $json.message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2380,
+        -120
+      ],
+      "id": "571e6fa8-0b93-482f-975d-fa2f1086aa22",
+      "name": "Send Email",
+      "webhookId": "ddd32d4f-9899-4790-86e2-b75b1a7684c3",
+      "credentials": {
+        "smtp": {
+          "id": "kuDEEYSrTK77LRSU",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4",
+          "mode": "list",
+          "cachedResultName": "GPT-4"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Com base nessa resposta:\n\n{{ $json.resposta }}\n\nGere um HTML personalizado para ser utilizado em um envio de relatório sobre a resposta."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1960,
+        -120
+      ],
+      "id": "9334a646-cad3-4bbf-9b10-8dc051b8d2ea",
+      "name": "AI_GeraHtml",
+      "credentials": {
+        "openAiApi": {
+          "id": "08Hqlyar1632Ixlg",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Code - TrataQuery": {
+      "main": [
+        [
+          {
+            "node": "DB_Executa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Gera Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI_AnalisaContexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_GeraQuery": {
+      "main": [
+        [
+          {
+            "node": "Code - TrataQuery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB_Executa": {
+      "main": [
+        [
+          {
+            "node": "Code - Gera Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_AnalisaContexto": {
+      "main": [
+        [
+          {
+            "node": "Code - Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI_GeraQuery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Resposta": {
+      "main": [
+        [
+          {
+            "node": "AI_GeraHtml",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        []
+      ]
+    },
+    "AI_GeraHtml": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "363e3ed2d1e5c24400edbdd23e55bb66d2fecfd4b79143869180f3b72993bfbf"
+  }
+}

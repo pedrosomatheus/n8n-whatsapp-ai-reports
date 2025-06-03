@@ -1,0 +1,476 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT TOP 1 id\nFROM whatsapp_mensagens\nWHERE chat_id = '{{ $json.body.chat_id }}'\nORDER BY timestamp DESC"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "36783f81-7347-4a45-bcd5-76a356eb1943",
+      "name": "Microsoft SQL",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "qpHmRJe0FaSg67x7",
+          "name": "Microsoft SQL account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:21465/api/default/get-messages/{{ $('Webhook - whatsapp-sync').item.json.body.chat_id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "count",
+              "value": "1000"
+            },
+            {
+              "name": "direction",
+              "value": "before"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json[\"last_id\"] }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer $2b$10$Tcc14GU_5CSxy0ckY7NrDuVaLHHrvrHfwLAXJCizc_g._gKU0l1qm\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "98a951eb-45ff-40c6-aef3-e0705f61bd04",
+      "name": "HTTP Request",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "table": "whatsapp_mensagens ",
+        "columns": "id,timestamp,from_number,to_number,from_me,message,message_type,is_forwarded,chat_id,sender_name,verified_name,is_group,ack"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "df482d68-960a-4286-ae06-642322f09885",
+      "name": "Microsoft SQL1",
+      "credentials": {
+        "microsoftSql": {
+          "id": "qpHmRJe0FaSg67x7",
+          "name": "Microsoft SQL account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const last_id = $input.first().json.id;\nreturn [{\n  chat_id: $json.chat_id,\n  last_id: last_id || ''\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "6174c882-f31a-45fa-aa6e-2b6206e3f767",
+      "name": "LastId - Func"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensagens = $json.response || [];\nconst idsExistentes = [];\n\nreturn mensagens\n  .filter(m => {\n    if (idsExistentes.includes(m.id)) return false;\n    idsExistentes.push(m.id);\n    return true;\n  })\n  .map(m => ({\n    json: {\n      id: m.id,\n      timestamp: new Date(m.timestamp * 1000).toISOString(),\n      from_number: m.from,\n      to_number: m.to,\n      from_me: String(m.fromMe),\n      message: m.body || m.content || '',\n      message_type: m.type,\n      is_forwarded: String(m.isForwarded || false),\n      chat_id: m.chatId?._serialized || m.from,\n      sender_name: m.sender?.formattedName || '',\n      verified_name: m.sender?.verifiedName || '',\n      is_group: String(m.isGroupMsg || false),\n      ack: String(m.ack)\n    }\n  }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "a4d318f6-e69e-42bb-9f3a-65a2587c98c5",
+      "name": "TrataMensagens - Func"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "chat_id",
+              "value": "={{$json.body.chat_id}}"
+            },
+            {
+              "name": "last_id"
+            },
+            {
+              "name": "continuar",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39ad1f8d-abce-4bac-9896-397ce8da1720",
+      "name": "Init Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        220,
+        460
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.continuar}}",
+              "value2": "=true"
+            }
+          ]
+        }
+      },
+      "id": "544dfe18-3269-42b0-a07a-fee5b8d9f80c",
+      "name": "IF continuar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        540,
+        460
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:21465/api/default/get-messages/{{ $('Init Variables1').item.json.chat_id }}",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "=[\n  { \"name\": \"count\", \"value\": \"1000\" },\n  { \"name\": \"direction\", \"value\": \"before\" },\n  { \"name\": \"id\", \"value\": \"{{ $('Init Variables1').item.json.last_id }}\" }\n]\n",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer $2b$10$Tcc14GU_5CSxy0ckY7NrDuVaLHHrvrHfwLAXJCizc_g._gKU0l1qm\"\n}",
+        "options": {}
+      },
+      "id": "7624d16c-01b7-4429-9e98-fa1f6a4beaca",
+      "name": "HTTP Get Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        860,
+        440
+      ],
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensagens = $json.response || [];\n\nif (!Array.isArray(mensagens) || mensagens.length === 0) {\n  return [{ continuar: false }];\n}\n\nconst idsExistentes = new Set();\nconst tratados = mensagens.map(m => {\n  if (!m?.id || idsExistentes.has(m.id)) return null;\n  idsExistentes.add(m.id);\n  return {\n    id: m.id,\n    timestamp: new Date(m.timestamp * 1000).toISOString(),\n    from_number: m.from,\n    to_number: m.to,\n    from_me: String(m.fromMe),\n    message: m.body || m.content || '',\n    message_type: m.type,\n    is_forwarded: String(m.isForwarded || false),\n    chat_id: m.from,  // 💡 Aqui está o chat_id correto\n    sender_name: m.sender?.formattedName || '',\n    verified_name: m.sender?.verifiedName || '',\n    is_group: String(m.isGroupMsg || false),\n    ack: String(m.ack)\n  };\n}).filter(Boolean);\n\nconst idsValidos = tratados.map(m => m.id).filter(Boolean);\nconst menorId = idsValidos.sort()[0] || '';\nconst chatId = tratados[0]?.chat_id || '';\n\nreturn tratados.map(m => ({\n  json: {\n    ...m,\n    continuar: true,\n    last_id: menorId,\n    chat_id: chatId\n  }\n}));\n"
+      },
+      "id": "d6f6fcc4-5bff-4b84-aa49-7ad22773214b",
+      "name": "TrataMensagens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        460
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "IF NOT EXISTS (\n  SELECT 1 FROM whatsapp_mensagens WHERE id = '{{ $json.id }}'\n)\nBEGIN\n  INSERT INTO whatsapp_mensagens\n  (id, timestamp, from_number, to_number, from_me, message, message_type, is_forwarded, chat_id, sender_name, verified_name, is_group, ack)\n  VALUES\n  ('{{ $json.id }}', '{{ $json.timestamp }}', '{{ $json.from_number }}', '{{ $json.to_number }}', '{{ $json.from_me }}', '{{ $json.message }}', '{{ $json.message_type }}', '{{ $json.is_forwarded }}', '{{ $json.chat_id }}', '{{ $json.sender_name }}', '{{ $json.verified_name }}', '{{ $json.is_group }}', '{{ $json.ack }}')\nEND"
+      },
+      "id": "82ebaeec-f20e-40d5-a275-1a61c14a32db",
+      "name": "Insert no Banco",
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        460
+      ],
+      "credentials": {
+        "microsoftSql": {
+          "id": "qpHmRJe0FaSg67x7",
+          "name": "Microsoft SQL account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "passThrough"
+      },
+      "id": "fb451e03-9987-465d-a77f-0dad80701a35",
+      "name": "MergeLoop",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        480
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-sync",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        460
+      ],
+      "id": "4bdc683d-1c3a-4406-8ba9-cfc2ac43b8aa",
+      "name": "Webhook1",
+      "webhookId": "d2ee2412-710c-43f7-a739-583cbf2d9ed9",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chat_id }}"
+            },
+            {
+              "name": "last_id",
+              "value": "={{ $json.last_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e880929d-d934-4873-bbd7-024862df09fc",
+      "name": "Init Variables1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        460
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:21465/api/default/get-messages/{{ $json.body.chat_id }}",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "=[\n  { \"name\": \"count\", \"value\": \"1000\" },\n  { \"name\": \"direction\", \"value\": \"before\" },\n  { \"name\": \"id\", \"value\": \"{{ $('Init Variables').item.json.last_id }}\" }\n]\n",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer $2b$10$Tcc14GU_5CSxy0ckY7NrDuVaLHHrvrHfwLAXJCizc_g._gKU0l1qm\"\n}",
+        "options": {}
+      },
+      "id": "5eeae538-e0f7-4f6f-ac07-c515cafb4ef9",
+      "name": "HTTP Get Messages1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        660,
+        260
+      ],
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-sync",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "78124cfe-9ef9-408f-aa61-29b963b9ea02",
+      "name": "Webhook - whatsapp-sync",
+      "webhookId": "d2ee2412-710c-43f7-a739-583cbf2d9ed9"
+    }
+  ],
+  "connections": {
+    "Microsoft SQL": {
+      "main": [
+        [
+          {
+            "node": "LastId - Func",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "TrataMensagens - Func",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LastId - Func": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TrataMensagens - Func": {
+      "main": [
+        [
+          {
+            "node": "Microsoft SQL1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Variables": {
+      "main": [
+        [
+          {
+            "node": "HTTP Get Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF continuar?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Get Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Get Messages": {
+      "main": [
+        [
+          {
+            "node": "TrataMensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TrataMensagens": {
+      "main": [
+        [
+          {
+            "node": "Init Variables1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert no Banco": {
+      "main": [
+        [
+          {
+            "node": "MergeLoop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MergeLoop": {
+      "main": [
+        [
+          {
+            "node": "IF continuar?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Get Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Init Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Variables1": {
+      "main": [
+        [
+          {
+            "node": "Insert no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Get Messages1": {
+      "main": [
+        [
+          {
+            "node": "TrataMensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - whatsapp-sync": {
+      "main": [
+        [
+          {
+            "node": "Microsoft SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "363e3ed2d1e5c24400edbdd23e55bb66d2fecfd4b79143869180f3b72993bfbf"
+  }
+}
